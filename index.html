@@ -1,0 +1,159 @@
+<!doctype html>
+
+<meta charset="utf-8"/>
+
+<title>Metolib WFS Request Interface</title>
+
+<!-- DEPS -->
+
+<script type="text/javascript"
+    src="metolib/deps/jquery/jquery-1.10.2-min.js"></script>
+
+<script type="text/javascript"
+    src="metolib/deps/async/async-0.2.9-min.js"></script>
+
+<script type="text/javascript"
+    src="metolib/deps/lodash/lodash.compat-2.1.0-min.js"></script>
+
+    <!-- MetOLib JavaScript files -->
+<script type="text/javascript"
+    src="metolib/lib/utils-1.1.10-min.js"></script>
+<script type="text/javascript"
+    src="metolib/lib/wfsrequestparser-1.1.10-min.js"></script>
+<script type="text/javascript"
+    src="metolib/lib/splittercache-1.1.10-min.js"></script>
+<script type="text/javascript"
+    src="metolib/lib/wfsconnection-1.1.10-min.js"></script>
+
+<!-- /DEPS -->
+
+<script type="text/javascript"
+    src="metolib/lib/metolib-combined-1.1.10-min.js"></script>
+
+<script>
+
+var API_KEY = "d8fdf214-fc19-49f3-8c3e-48c55d57ffe9";
+
+var SERVER_URL = "http://data.fmi.fi/fmi-apikey/" + API_KEY + "/wfs";
+var STORED_QUERY_OBSERVATION = "fmi::observations::weather::multipointcoverage";
+
+var connection = new fi.fmi.metoclient.metolib.WfsConnection();
+
+var defaults = {
+	storedQueryId : "fmi::observations::weather::multipointcoverage",
+	properties : "temperature,td,ws_10min",
+	begin : "2013-05-10T08:00:00Z",
+	end : "2013-05-12T10:00:00Z",
+	timestep : 60 * 60 * 1000,
+	sites : ["Helsinki","Kaisaniemi,Helsinki"],
+};
+
+var prettyPrint = function (object) {
+	return JSON.stringify(object, undefined, 2);
+};
+
+var handleCallback = function (data, errors) {
+	console.log(data);
+	if (errors.length > 0)
+	    alert(prettyPrint(errors));
+	window.data = data;
+	$("#info").text(prettyPrint(data.info));
+	$("#properties").text(prettyPrint(data.properties));
+	$(".result").show();
+	data.locations.forEach(function (location) {
+		Object.keys(location.data).forEach(function (prop) {
+			var button = $("<button>Show data: " + location.data[prop].property.label + "</button>");
+			$("#locations").append(button);
+			var data = "[" + location.data[prop].timeValuePairs.map(function (p) {return "[" + p.time + " " + p.value + "]";}).join(";") + "]";
+			button.click(function () {prompt("Copy the data below into Matlab etc.", data)});
+		});
+		$("#locations").append("<pre>" + prettyPrint(location.info) + "</pre>");
+		$("#locations").append("<hr></hr>");
+	});
+};
+
+$(function () {
+
+	$(".result").hide();
+
+	$("#input_storedQueryId").val(defaults.storedQueryId);
+	$("#input_properties"   ).val(defaults.properties);
+	$("#input_begin"        ).val(defaults.begin);
+	$("#input_end"          ).val(defaults.end);
+	$("#input_timestep"     ).val(defaults.timestep);
+	$("#input_sites"        ).val(defaults.sites.join("&"));
+
+	$("#button_getData").click(function () {
+
+		var input_storedQueryId = $("#input_storedQueryId").val();
+		var input_properties    = $("#input_properties").val();
+		var input_begin         = Date.parse($("#input_begin").val());
+		var input_end           = Date.parse($("#input_end").val());
+		var input_timestep      = parseInt($("#input_timestep").val(), 10);
+		var input_sites         = $("#input_sites").val().split("&");
+
+		$("#locations").empty();
+
+		console.log(input_sites);
+
+		fi.fmi.metoclient.metolib.WfsRequestParser.getData({
+			url :              SERVER_URL,
+			storedQueryId :    input_storedQueryId,
+		    requestParameter : input_properties,
+		    begin :            new Date(input_begin),
+		    end :              new Date(input_end),
+		    timestep :         input_timestep,
+		    sites :            input_sites,
+		    callback :         handleCallback
+		});
+
+	});
+
+});
+
+</script>
+
+<h1>Metolib WFS Request Interface</h1>
+
+<p>
+	<label for="input_storedQueryId">Stored Query Id:</label>
+	<input id="input_storedQueryId" />
+	(<a href="http://en.ilmatieteenlaitos.fi/open-data-manual-fmi-wfs-services">list of stored queries</a>)
+	<br>
+	<label for="input_properties">Parameters:</label>
+	<input id="input_properties" />
+	<br>
+	<label for="input_begin">Begin:</label>
+	<input id="input_begin" />
+	(formatted in <a href="http://www.w3.org/TR/NOTE-datetime">ISO 8601</a>)
+	<br>
+	<label for="input_end">End:</label>
+	<input id="input_end" />
+	(formatted in <a href="http://www.w3.org/TR/NOTE-datetime">ISO 8601</a>)
+	<br>
+	<label for="input_timestep">Timestep:</label>
+	<input id="input_timestep" />
+	(in milliseconds.)
+	<br>
+	<label for="input_sites">Sites:</label>
+	<input id="input_sites" />
+	(separate entries with <code>&amp;</code>)
+</p>
+
+<p>
+    Values are returned as time value pairs, with times in
+    <a href="http://en.wikipedia.org/wiki/Unix_time"> the Unix epoch time</a>.
+</p>
+
+<p>
+	<button id="button_getData">Get data</button>
+</p>
+
+<h2   class="result">Info</h2>
+<pre  class="result" id="info"></pre>
+
+<h2   class="result">Properties</h2>
+<pre  class="result" id="properties"></pre>
+
+<h2   class="result">Locations</h2>
+<span class="result" id="locations"></span>
